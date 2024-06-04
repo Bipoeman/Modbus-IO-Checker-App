@@ -37,6 +37,9 @@ dependencies:
   cupertino_icons: ^1.0.6
   all_bluetooth: ^0.1.0
   flutter_bluetooth_serial: ^0.4.0
+  bloc: ^8.1.4
+  flutter_bloc: ^8.1.5
+  sizer: ^2.0.15
 
 dev_dependencies:
   flutter_test:
