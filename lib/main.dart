@@ -97,7 +97,6 @@ class _MyHomePageState extends State<MyHomePage> {
                     await state.connection.output.allSent;
                   } else if (getDataState == "mode") {
                     if (getDataState.isEmpty) return;
-
                     modeTextController.text = dataString;
                     getDataState = "";
                     setState(() {});
