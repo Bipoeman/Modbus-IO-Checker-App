@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:developer';
 import 'dart:typed_data';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -12,6 +13,12 @@ import 'package:sizer/sizer.dart';
 void main() {
   runApp(const MyApp());
 }
+
+Color statusToColor(int status) {
+  return status == 0 ? Colors.grey[600]! : Colors.green[800]!;
+}
+
+Map<String, int> modeToStr = {"SLAVE": 0, "MASTER": 1};
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -40,9 +47,13 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  bool isConnect = false;
   TextEditingController nameTextController = TextEditingController();
   TextEditingController addressTextController = TextEditingController();
   TextEditingController modeTextController = TextEditingController();
+  List<int> pinStatus = List.generate(4, (index) => 0);
+  List<int> pinNumber = [33, 26, 27, 13];
+  int modeValue = 0;
   String getDataState = "";
   List<BluetoothDevice> devices = [];
 
@@ -79,26 +90,36 @@ class _MyHomePageState extends State<MyHomePage> {
         child: BlocConsumer<BluetoothReceiveBloc, BluetoothReceiveState>(
           listener: (context, state) async {
             // TODO: implement listener
+
             if (state is BluetoothConnected) {
+              isConnect = state.connection.isConnected;
+              if (state.connection.isConnected) {
+                state.connection.output.add(Uint8List.fromList(utf8.encode("all=?\r\n")));
+                await state.connection.output.allSent;
+              }
+              setState(() {});
+              // log("Bluetooth Connected");
               state.connection.input!.listen(
                 (event) async {
                   String dataString = String.fromCharCodes(event).trim();
-                  log("state = $getDataState data = $dataString length = ${dataString.length}");
-                  if (getDataState == "name") {
-                    nameTextController.text = dataString;
-                    getDataState = "address";
-                    state.connection.output.add(Uint8List.fromList(utf8.encode("address=?\r\n")));
-                    await state.connection.output.allSent;
-                  } else if (getDataState == "address") {
-                    if (getDataState.isEmpty) return;
-                    addressTextController.text = dataString;
-                    getDataState = "mode";
-                    state.connection.output.add(Uint8List.fromList(utf8.encode("mode=?\r\n")));
-                    await state.connection.output.allSent;
-                  } else if (getDataState == "mode") {
-                    if (getDataState.isEmpty) return;
-                    modeTextController.text = dataString;
-                    getDataState = "";
+                  if (dataString.contains("ALL")) {
+                    List<String> splitted = dataString.split("\t");
+                    print(splitted);
+                    nameTextController.text = splitted[1];
+                    addressTextController.text = splitted[2];
+                    // modeTextController.text = splitted[3];
+                    modeValue = modeToStr[splitted[3]]!;
+                    setState(() {});
+                  }
+                  if (dataString.contains("PIN")) {
+                    List<String> splitted = dataString.split("\t");
+                    try {
+                      int pinStatusNum = int.parse(splitted[1]);
+                      for (int i = 0; i < pinStatus.length; i++) {
+                        pinStatus[i] = (pinStatusNum >> i) & 1;
+                      }
+                      log("${pinStatus[0]} ${pinStatus[1]} ${pinStatus[2]} ${pinStatus[3]}");
+                    } catch (e) {}
                     setState(() {});
                   }
                 },
@@ -113,28 +134,6 @@ class _MyHomePageState extends State<MyHomePage> {
                 selectedTileColor: Theme.of(context).colorScheme.primary,
               )),
               child: Scaffold(
-                // drawer: Drawer(
-                //   child: SafeArea(
-                //     child: Container(
-                //       margin: const EdgeInsets.only(top: 32),
-                //       child: Column(
-                //         children: [
-                //           ListTile(
-                //             title: const Text("Control"),
-                //             onTap: () {},
-                //           ),
-                //           ListTile(
-                //             title: const Text("Bluetooth Device"),
-                //             onTap: () {
-                //               BlocProvider.of<BluetoothReceiveBloc>(context).add(SelectDevice());
-                //               Navigator.pop(context);
-                //             },
-                //           ),
-                //         ],
-                //       ),
-                //     ),
-                //   ),
-                // ),
                 appBar: AppBar(
                   backgroundColor: Theme.of(context).colorScheme.inversePrimary,
                   title: Text(widget.title),
@@ -174,15 +173,48 @@ class _MyHomePageState extends State<MyHomePage> {
                     } else if (state is BluetoothConnected) {
                       return RefreshIndicator(
                         child: SingleChildScrollView(
-                          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                          physics: const BouncingScrollPhysics(),
                           child: Container(
                             height: 100.h,
-                            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                             child: DefaultTextStyle(
                               style: const TextStyle(fontSize: 18, color: Colors.black),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  Text(
+                                    "Device Info",
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 24,
+                                      color: Colors.grey[600],
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 16.sp),
+                                  Row(
+                                    children: [
+                                      Text(
+                                        "Status : ",
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 20,
+                                          color: Colors.grey[600],
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      Text(
+                                        isConnect ? "Connected" : "Not Connected",
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 20,
+                                          color: isConnect ? Colors.green : Colors.red,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  SizedBox(height: 16.sp),
                                   Row(
                                     children: [
                                       SizedBox(width: 25.w, child: const Text("Name : ")),
@@ -204,6 +236,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                       SizedBox(width: 25.w, child: const Text("Address : ")),
                                       Flexible(
                                         child: TextField(
+                                          keyboardType: TextInputType.number,
                                           controller: addressTextController,
                                           decoration: InputDecoration(
                                             border: OutlineInputBorder(
@@ -219,16 +252,88 @@ class _MyHomePageState extends State<MyHomePage> {
                                     children: [
                                       SizedBox(width: 25.w, child: const Text("Mode : ")),
                                       Flexible(
-                                        child: TextField(
-                                          controller: modeTextController,
-                                          decoration: InputDecoration(
-                                            border: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                          ),
+                                        child: DropdownButton<int>(
+                                          borderRadius: BorderRadius.circular(12),
+                                          isExpanded: true,
+                                          value: modeValue,
+                                          onChanged: (value) {
+                                            if (value != null) {
+                                              modeValue = value;
+                                              setState(() {});
+                                            }
+                                          },
+                                          items: const [
+                                            DropdownMenuItem(value: 1, child: Text("MASTER")),
+                                            DropdownMenuItem(value: 0, child: Text("SLAVE")),
+                                          ],
                                         ),
                                       ),
                                     ],
+                                  ),
+                                  SizedBox(height: 8.sp),
+                                  SizedBox(
+                                    width: 100.w,
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Theme.of(context).colorScheme.primary,
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                      ),
+                                      child: const Text("Save Data"),
+                                      onPressed: () async {
+                                        state.connection.output.add(Uint8List.fromList(utf8.encode("name=${nameTextController.text}\r\n")));
+                                        await state.connection.output.allSent;
+                                        Future.delayed(const Duration(seconds: 1));
+                                        state.connection.output.add(Uint8List.fromList(utf8.encode("address=${addressTextController.text}\r\n")));
+                                        await state.connection.output.allSent;
+                                        Future.delayed(const Duration(seconds: 1));
+                                        state.connection.output.add(Uint8List.fromList(utf8.encode("mode=$modeValue\r\n")));
+                                        await state.connection.output.allSent;
+                                      },
+                                    ),
+                                  ),
+                                  SizedBox(height: 12.sp),
+                                  const Divider(),
+                                  SizedBox(height: 12.sp),
+                                  Text(
+                                    "Pin Status",
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 24,
+                                      color: Colors.grey[600],
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8.sp),
+                                  Center(
+                                    child: Wrap(
+                                      runSpacing: 12,
+                                      spacing: 12,
+                                      children: List.generate(
+                                        pinNumber.length,
+                                        (index) {
+                                          return Container(
+                                            padding: EdgeInsets.symmetric(vertical: 18.sp),
+                                            width: 45.w,
+                                            decoration: BoxDecoration(
+                                              color: statusToColor(pinStatus[index]),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Center(
+                                              child: Text(
+                                                "IO${pinNumber[index]}",
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ),
@@ -236,14 +341,12 @@ class _MyHomePageState extends State<MyHomePage> {
                           ),
                         ),
                         onRefresh: () async {
-                          getDataState = "name";
-                          state.connection.output.add(Uint8List.fromList(utf8.encode("name=?\r\n")));
-                          await state.connection.output.allSent;
-
-                          // await Future.delayed(const Duration(seconds: 1));
-                          // getDataState = "mode";
-                          // state.connection.output.add(Uint8List.fromList(utf8.encode("mode=?\r\n")));
-                          // await state.connection.output.allSent;
+                          if (state.connection.isConnected) {
+                            state.connection.output.add(Uint8List.fromList(utf8.encode("all=?\r\n")));
+                            await state.connection.output.allSent;
+                          }
+                          isConnect = state.connection.isConnected;
+                          setState(() {});
                         },
                       );
                     }
@@ -251,17 +354,6 @@ class _MyHomePageState extends State<MyHomePage> {
                       child: Text("Hello World"),
                     );
                   },
-                ),
-                floatingActionButton: FloatingActionButton(
-                  onPressed: () async {
-                    if (state is BluetoothConnected) {
-                      getDataState = "name";
-                      state.connection.output.add(Uint8List.fromList(utf8.encode("name=?\r\n")));
-                      await state.connection.output.allSent;
-                    }
-                  },
-                  tooltip: 'Increment',
-                  child: const Icon(Icons.refresh),
                 ),
               ),
             );
