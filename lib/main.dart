@@ -27,12 +27,12 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Modbus IO Checker',
+      title: 'ISAAC Alarm Cracker',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'MODBUS IO Checker'),
+      home: const MyHomePage(title: 'ISAAC Alarm Cracker'),
     );
   }
 }
